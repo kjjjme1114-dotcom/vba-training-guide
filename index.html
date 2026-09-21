@@ -179,61 +179,115 @@ End Sub</code></pre>
       <div class="code-block">
         <button class="copy-btn" data-target="code4">📋 복사</button>
         <pre id="code4"><code>Sub Consolidate_Branch_Sales()
-    ' ==========================================================
-    ' 지정한 폴더 안의 지점별 판매현황(*.xlsx) 파일을 모두 읽어
-    ' 현재 통합 문서의 "취합데이터" 시트에 한 번에 모으는 매크로
-    ' ==========================================================
-    Dim FolderPath As String
+  Dim FolderPath As String
     Dim FileName As String
     Dim wbSrc As Workbook
     Dim wsSrc As Worksheet
     Dim wsDst As Worksheet
     Dim lastRowSrc As Long
     Dim lastRowDst As Long
+    Dim fileCount As Long
+    Dim skipList As String
 
-    ' 1) 원본 파일들이 들어있는 폴더 경로 (환경에 맞게 수정)
-    FolderPath = ThisWorkbook.Path & "\예제파일\"
+    ' 1) 폴더 선택 대화상자
+    With Application.FileDialog(msoFileDialogFolderPicker)
+        .Title = "취합할 파일이 들어있는 폴더를 선택하세요"
+        .AllowMultiSelect = False
+        .InitialFileName = ThisWorkbook.Path & "\"
+        If .Show <> -1 Then
+            MsgBox "폴더 선택이 취소되었습니다.", vbExclamation
+            Exit Sub
+        End If
+        FolderPath = .SelectedItems(1)
+    End With
+    If Right$(FolderPath, 1) <> "\" Then FolderPath = FolderPath & "\"
 
-    ' 2) 취합 결과를 넣을 시트 준비 (있으면 초기화, 없으면 새로 생성)
+    ' 2) 취합 시트 준비
     On Error Resume Next
     Set wsDst = ThisWorkbook.Worksheets("취합데이터")
     On Error GoTo 0
     If wsDst Is Nothing Then
-        Set wsDst = ThisWorkbook.Worksheets.Add
+        Set wsDst = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
         wsDst.Name = "취합데이터"
     Else
         wsDst.Cells.Clear
     End If
 
-    ' 3) 헤더 작성
+    ' 3) 헤더
     wsDst.Range("A1:G1").Value = Array("날짜", "지점", "담당자", "제품명", "판매수량", "단가", "매출액")
     wsDst.Range("A1:G1").Font.Bold = True
 
     Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    On Error GoTo ErrHandler
 
-    ' 4) 폴더 내 모든 xlsx 파일 순회
+    ' 4) 폴더 내 xlsx 순회
     FileName = Dir(FolderPath & "*.xlsx")
     Do While FileName <> ""
-        Set wbSrc = Workbooks.Open(FolderPath & FileName, ReadOnly:=True)
-        Set wsSrc = wbSrc.Worksheets("매출현황")
 
-        lastRowSrc = wsSrc.Cells(wsSrc.Rows.Count, "A").End(xlUp).Row
-        lastRowDst = wsDst.Cells(wsDst.Rows.Count, "A").End(xlUp).Row
+        If FolderPath & FileName <> ThisWorkbook.FullName Then
 
-        If lastRowSrc >= 2 Then
-            wsSrc.Range("A2:G" & lastRowSrc).Copy _
-                Destination:=wsDst.Cells(lastRowDst + 1, 1)
+            Set wbSrc = Workbooks.Open(FolderPath & FileName, ReadOnly:=True)
+
+            Set wsSrc = Nothing
+            On Error Resume Next
+            Set wsSrc = wbSrc.Worksheets("매출현황")
+            On Error GoTo ErrHandler
+
+            If wsSrc Is Nothing Then
+                skipList = skipList & vbLf & " - " & FileName
+            Else
+                lastRowSrc = wsSrc.Cells(wsSrc.Rows.Count, "A").End(xlUp).Row
+                lastRowDst = wsDst.Cells(wsDst.Rows.Count, "A").End(xlUp).Row
+
+                ' ★ 클립보드 대신 배열로 직접 전달 (1004 오류 해결)
+                If lastRowSrc >= 2 Then
+                    wsDst.Cells(lastRowDst + 1, 1).Resize(lastRowSrc - 1, 7).Value = _
+                        wsSrc.Range("A2:G" & lastRowSrc).Value
+                End If
+                fileCount = fileCount + 1
+            End If
+
+            wbSrc.Close SaveChanges:=False
+            Set wbSrc = Nothing
         End If
 
-        wbSrc.Close SaveChanges:=False
-        FileName = Dir   ' 다음 파일명으로 이동
+        FileName = Dir
     Loop
 
+    ' 5) 서식은 취합 후 한 번에 지정
+    lastRowDst = wsDst.Cells(wsDst.Rows.Count, "A").End(xlUp).Row
+    If lastRowDst >= 2 Then
+        wsDst.Range("A2:A" & lastRowDst).NumberFormatLocal = "yyyy-mm-dd"
+        wsDst.Range("E2:E" & lastRowDst).NumberFormatLocal = "#,##0"
+        wsDst.Range("F2:G" & lastRowDst).NumberFormatLocal = "#,##0"
+    End If
+
     wsDst.Columns("A:G").AutoFit
+    wsDst.Activate
     wsDst.Range("A1").Select
 
     Application.ScreenUpdating = True
-    MsgBox "취합이 완료되었습니다!", vbInformation
+    Application.DisplayAlerts = True
+
+    If fileCount = 0 Then
+        MsgBox "선택한 폴더에 취합할 xlsx 파일이 없습니다." & vbLf & FolderPath, vbExclamation
+    Else
+        MsgBox "취합이 완료되었습니다!" & vbLf & _
+               "처리한 파일 수 : " & fileCount & "개" & vbLf & _
+               "취합 행 수 : " & (lastRowDst - 1) & "행" & _
+               IIf(skipList <> "", vbLf & vbLf & "[제외됨 - '매출현황' 시트 없음]" & skipList, ""), _
+               vbInformation
+    End If
+    Exit Sub
+
+ErrHandler:
+    If Not wbSrc Is Nothing Then wbSrc.Close SaveChanges:=False
+    Application.CutCopyMode = False
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    MsgBox "오류가 발생했습니다." & vbLf & _
+           "파일 : " & FileName & vbLf & Err.Number & " - " & Err.Description, vbCritical
 End Sub</code></pre>
       </div>
 
