@@ -325,120 +325,927 @@ End Sub</code></pre>
     </section>
 
     <section class="step" id="step6">
-      <h2>실습 6. 피벗 결과를 HTML 대시보드로 만들기</h2>
-      <p>실습 5에서 만든 피벗 테이블 데이터를 읽어와, 웹 브라우저에서 바로 열어볼 수 있는 간단한 HTML 대시보드 파일(.html)을 자동 생성하는 매크로입니다.</p>
+      <h2>실습 6. 피벗 결과를 BI 대시보드(HTML)로 만들기</h2>
+      <p>실습 5에서 만든 피벗 테이블 데이터를 읽어와, 검색·정렬 기능과 KPI 카드, 막대그래프가 포함된 반응형 BI 대시보드(.html)를 자동 생성하는 매크로입니다. 참조 설정 없이 <b>ADODB.Stream</b>으로 UTF-8 저장을 처리하여 한글 깨짐을 방지하고, 생성 후 기본 브라우저로 자동 실행됩니다.</p>
+
+      <h3>주요 기능</h3>
+      <ul>
+        <li>HTML 파일을 UTF-8로 저장하여 한글 깨짐 방지</li>
+        <li>지점명 검색 상자 (실시간 필터링)</li>
+        <li>지점별 합계 기준 오름차순/내림차순 정렬 및 초기화 버튼</li>
+        <li>총매출·분석 지점 수·분석 제품 수 KPI 카드</li>
+        <li>지점별 총매출 막대그래프 + 표 셀 안의 제품별 매출 막대그래프</li>
+        <li>PC/모바일 반응형 레이아웃 (미디어 쿼리 적용)</li>
+        <li>생성이 끝나면 기본 브라우저로 자동 실행</li>
+      </ul>
+
+      <div class="note">💡 이 매크로를 사용하려면 실습 5에서 만든 "피벗분석" 시트와 "pt_지점제품매출" 피벗 테이블(행: 지점, 열: 제품명, 값: 매출액 합계)이 먼저 준비되어 있어야 합니다.</div>
 
       <div class="code-block">
         <button class="copy-btn" data-target="code6">📋 복사</button>
-        <pre id="code6"><code>Sub Export_Pivot_To_HTML()
+        <pre id="code6"><code>Option Explicit
+
+'============================================================
+' Copilot이 VBA로 만든 BI 대시보드
+'
+' 대상 워크시트 : 피벗분석
+' 대상 피벗테이블 : pt_지점제품매출
+' 행 필드 : 지점
+' 열 필드 : 제품명
+' 값 필드 : 매출액 합계
+'
+' 주요 기능
+' 1. HTML 파일을 UTF-8로 저장
+' 2. 한글 깨짐 방지
+' 3. 지점명 검색
+' 4. 지점별 합계 기준 정렬
+' 5. KPI 카드 생성
+' 6. 지점별 총매출 막대그래프
+' 7. 제품별 매출 셀 막대그래프
+' 8. 반응형 웹 화면
+' 9. 생성 후 기본 브라우저 자동 실행
+'============================================================
+
+Public Sub Export_Pivot_To_BI_Dashboard()
+
+    Const SHEET_NAME As String = "피벗분석"
+    Const PIVOT_NAME As String = "pt_지점제품매출"
+    Const ROW_FIELD_NAME As String = "지점"
+    Const COLUMN_FIELD_NAME As String = "제품명"
+    Const DATA_FIELD_NAME As String = "매출액 합계"
+
     Dim wsPivot As Worksheet
     Dim pTable As PivotTable
-    Dim html As String
     Dim rowField As PivotField
     Dim colField As PivotField
-    Dim i As Long, j As Long
-    Dim rowItems As Long, colItems As Long
-    Dim rowLabel As String, colLabel As String
-    Dim cellValue As Double
-    Dim maxValue As Double
+
+    Dim rowLabels As Collection
+    Dim colLabels As Collection
+
+    Dim html As String
     Dim outputPath As String
-    Dim fNum As Integer
 
-    Set wsPivot = ThisWorkbook.Worksheets("피벗분석")
-    Set pTable = wsPivot.PivotTables("pt_지점제품매출")
+    Dim i As Long
+    Dim j As Long
 
-    Set rowField = pTable.PivotFields("지점")
-    Set colField = pTable.PivotFields("제품명")
-    rowItems = rowField.PivotItems.Count
-    colItems = colField.PivotItems.Count
+    Dim rowLabel As String
+    Dim colLabel As String
 
-    ' 1) 최대값 계산 (막대그래프 비율에 사용)
-    maxValue = 0
-    For i = 1 To rowItems
-        For j = 1 To colItems
-            On Error Resume Next
-            cellValue = pTable.GetPivotData("매출액 합계", _
-                "지점", rowField.PivotItems(i).Name, _
-                "제품명", colField.PivotItems(j).Name).Value
-            On Error GoTo 0
-            If cellValue > maxValue Then maxValue = cellValue
+    Dim cellValue As Double
+    Dim rowTotal As Double
+    Dim grandTotal As Double
+    Dim maxCellValue As Double
+    Dim maxRowTotal As Double
+
+    Dim barWidth As Double
+    Dim rowBarWidth As Double
+
+    Dim branchCount As Long
+    Dim productCount As Long
+
+    Dim rowTotals() As Double
+    Dim productTotals() As Double
+
+    On Error GoTo ErrorHandler
+
+    Application.ScreenUpdating = False
+    Application.StatusBar = "BI 대시보드를 생성하고 있습니다."
+
+    '--------------------------------------------------------
+    ' 1. 워크시트 및 피벗테이블 연결
+    '--------------------------------------------------------
+    Set wsPivot = ThisWorkbook.Worksheets(SHEET_NAME)
+    Set pTable = wsPivot.PivotTables(PIVOT_NAME)
+
+    Set rowField = pTable.PivotFields(ROW_FIELD_NAME)
+    Set colField = pTable.PivotFields(COLUMN_FIELD_NAME)
+
+    '--------------------------------------------------------
+    ' 2. 화면에 표시되는 피벗 항목 수집
+    '--------------------------------------------------------
+    Set rowLabels = GetVisiblePivotItems(rowField)
+    Set colLabels = GetVisiblePivotItems(colField)
+
+    branchCount = rowLabels.Count
+    productCount = colLabels.Count
+
+    If branchCount = 0 Then
+        MsgBox "피벗테이블에 표시할 지점 데이터가 없습니다.", vbExclamation
+        GoTo ExitHandler
+    End If
+
+    If productCount = 0 Then
+        MsgBox "피벗테이블에 표시할 제품 데이터가 없습니다.", vbExclamation
+        GoTo ExitHandler
+    End If
+
+    ReDim rowTotals(1 To branchCount)
+    ReDim productTotals(1 To productCount)
+
+    '--------------------------------------------------------
+    ' 3. 최대값, 총매출, 지점별 합계, 제품별 합계 계산
+    '--------------------------------------------------------
+    maxCellValue = 0
+    maxRowTotal = 0
+    grandTotal = 0
+
+    For i = 1 To branchCount
+
+        rowLabel = CStr(rowLabels(i))
+        rowTotal = 0
+
+        For j = 1 To productCount
+
+            colLabel = CStr(colLabels(j))
+
+            cellValue = GetPivotValueSafe( _
+                            pTable, _
+                            DATA_FIELD_NAME, _
+                            ROW_FIELD_NAME, _
+                            rowLabel, _
+                            COLUMN_FIELD_NAME, _
+                            colLabel)
+
+            rowTotal = rowTotal + cellValue
+            productTotals(j) = productTotals(j) + cellValue
+
+            If cellValue &gt; maxCellValue Then
+                maxCellValue = cellValue
+            End If
+
         Next j
+
+        rowTotals(i) = rowTotal
+        grandTotal = grandTotal + rowTotal
+
+        If rowTotal &gt; maxRowTotal Then
+            maxRowTotal = rowTotal
+        End If
+
     Next i
 
-    ' 2) HTML 문서 작성 시작
-    html = "&lt;!DOCTYPE html&gt;&lt;html lang='ko'&gt;&lt;head&gt;&lt;meta charset='UTF-8'&gt;"
-    html = html &amp; "&lt;title&gt;지점별 매출 대시보드&lt;/title&gt;"
-    html = html &amp; "&lt;style&gt;"
-    html = html &amp; "body{font-family:'맑은 고딕',Arial,sans-serif;background:#f4f6f8;margin:40px;}"
-    html = html &amp; "h1{color:#1F4E78;} table{border-collapse:collapse;width:100%;background:#fff;}"
-    html = html &amp; "th,td{border:1px solid #ddd;padding:8px;text-align:center;}"
-    html = html &amp; "th{background:#1F4E78;color:#fff;}"
-    html = html &amp; ".bar-cell{position:relative;text-align:left;padding-left:6px;}"
-    html = html &amp; ".bar{height:18px;background:#4C9AFF;border-radius:3px;}"
-    html = html &amp; "&lt;/style&gt;&lt;/head&gt;&lt;body&gt;"
-    html = html &amp; "&lt;h1&gt;지점 x 제품별 매출 대시보드&lt;/h1&gt;"
-    html = html &amp; "&lt;p&gt;생성일시: " &amp; Format(Now, "yyyy-mm-dd hh:mm") &amp; "&lt;/p&gt;"
+    '--------------------------------------------------------
+    ' 4. HTML 문서 헤더
+    '--------------------------------------------------------
+    html = "&lt;!DOCTYPE html&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;html lang='ko'&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;head&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;meta charset='UTF-8'&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;meta http-equiv='Content-Type' content='text/html; charset=UTF-8'&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;meta name='viewport' content='width=device-width, initial-scale=1.0'&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;title&gt;지점별 매출 BI 대시보드&lt;/title&gt;" &amp; vbCrLf
 
-    ' 3) 표 헤더
-    html = html &amp; "&lt;table&gt;&lt;tr&gt;&lt;th&gt;지점&lt;/th&gt;"
-    For j = 1 To colItems
-        html = html &amp; "&lt;th&gt;" &amp; colField.PivotItems(j).Name &amp; "&lt;/th&gt;"
+    '--------------------------------------------------------
+    ' 5. CSS 디자인
+    '--------------------------------------------------------
+    html = html &amp; "&lt;style&gt;" &amp; vbCrLf
+
+    html = html &amp; ":root{" &amp; _
+                  "--navy:#17365D;" &amp; _
+                  "--blue:#2F75B5;" &amp; _
+                  "--sky:#5B9BD5;" &amp; _
+                  "--light:#EAF2F8;" &amp; _
+                  "--green:#00A389;" &amp; _
+                  "--orange:#F39C12;" &amp; _
+                  "--red:#E74C3C;" &amp; _
+                  "--text:#243447;" &amp; _
+                  "--muted:#6B7785;" &amp; _
+                  "--border:#D9E2EC;" &amp; _
+                  "--background:#F4F7FA;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; "*{box-sizing:border-box;}" &amp; vbCrLf
+
+    html = html &amp; "body{" &amp; _
+                  "margin:0;" &amp; _
+                  "font-family:'Malgun Gothic','맑은 고딕',Arial,sans-serif;" &amp; _
+                  "background:var(--background);" &amp; _
+                  "color:var(--text);" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".header{" &amp; _
+                  "background:linear-gradient(135deg,#17365D,#2F75B5);" &amp; _
+                  "color:white;" &amp; _
+                  "padding:28px 32px;" &amp; _
+                  "box-shadow:0 4px 14px rgba(0,0,0,0.14);" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".header h1{" &amp; _
+                  "margin:0 0 8px 0;" &amp; _
+                  "font-size:28px;" &amp; _
+                  "font-weight:700;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".header p{" &amp; _
+                  "margin:0;" &amp; _
+                  "font-size:14px;" &amp; _
+                  "opacity:0.88;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".container{" &amp; _
+                  "max-width:1500px;" &amp; _
+                  "margin:0 auto;" &amp; _
+                  "padding:24px;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".kpi-grid{" &amp; _
+                  "display:grid;" &amp; _
+                  "grid-template-columns:repeat(3,minmax(200px,1fr));" &amp; _
+                  "gap:18px;" &amp; _
+                  "margin-bottom:24px;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".kpi-card{" &amp; _
+                  "background:white;" &amp; _
+                  "border-radius:14px;" &amp; _
+                  "padding:22px;" &amp; _
+                  "box-shadow:0 4px 16px rgba(31,78,121,0.09);" &amp; _
+                  "border:1px solid #E8EEF4;" &amp; _
+                  "position:relative;" &amp; _
+                  "overflow:hidden;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".kpi-card:before{" &amp; _
+                  "content:'';" &amp; _
+                  "position:absolute;" &amp; _
+                  "left:0;" &amp; _
+                  "top:0;" &amp; _
+                  "width:6px;" &amp; _
+                  "height:100%;" &amp; _
+                  "background:var(--blue);" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".kpi-card.green:before{background:var(--green);}" &amp; vbCrLf
+    html = html &amp; ".kpi-card.orange:before{background:var(--orange);}" &amp; vbCrLf
+
+    html = html &amp; ".kpi-title{" &amp; _
+                  "font-size:14px;" &amp; _
+                  "color:var(--muted);" &amp; _
+                  "margin-bottom:10px;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".kpi-value{" &amp; _
+                  "font-size:28px;" &amp; _
+                  "font-weight:700;" &amp; _
+                  "color:var(--navy);" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".section{" &amp; _
+                  "background:white;" &amp; _
+                  "border-radius:14px;" &amp; _
+                  "padding:22px;" &amp; _
+                  "margin-bottom:24px;" &amp; _
+                  "box-shadow:0 4px 16px rgba(31,78,121,0.08);" &amp; _
+                  "border:1px solid #E8EEF4;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".section-title{" &amp; _
+                  "margin:0 0 18px 0;" &amp; _
+                  "font-size:19px;" &amp; _
+                  "color:var(--navy);" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".summary-row{" &amp; _
+                  "display:grid;" &amp; _
+                  "grid-template-columns:160px 1fr 130px;" &amp; _
+                  "align-items:center;" &amp; _
+                  "gap:12px;" &amp; _
+                  "margin-bottom:13px;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".summary-label{" &amp; _
+                  "font-weight:600;" &amp; _
+                  "overflow:hidden;" &amp; _
+                  "text-overflow:ellipsis;" &amp; _
+                  "white-space:nowrap;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".summary-track{" &amp; _
+                  "height:24px;" &amp; _
+                  "background:#EAF0F6;" &amp; _
+                  "border-radius:12px;" &amp; _
+                  "overflow:hidden;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".summary-bar{" &amp; _
+                  "height:100%;" &amp; _
+                  "min-width:2px;" &amp; _
+                  "background:linear-gradient(90deg,#2F75B5,#5B9BD5);" &amp; _
+                  "border-radius:12px;" &amp; _
+                  "transition:width .5s ease;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".summary-value{" &amp; _
+                  "text-align:right;" &amp; _
+                  "font-weight:700;" &amp; _
+                  "color:var(--navy);" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".toolbar{" &amp; _
+                  "display:flex;" &amp; _
+                  "gap:10px;" &amp; _
+                  "flex-wrap:wrap;" &amp; _
+                  "justify-content:space-between;" &amp; _
+                  "align-items:center;" &amp; _
+                  "margin-bottom:16px;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".search-box{" &amp; _
+                  "min-width:280px;" &amp; _
+                  "padding:11px 14px;" &amp; _
+                  "border:1px solid var(--border);" &amp; _
+                  "border-radius:8px;" &amp; _
+                  "font-family:inherit;" &amp; _
+                  "font-size:14px;" &amp; _
+                  "outline:none;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".search-box:focus{" &amp; _
+                  "border-color:var(--blue);" &amp; _
+                  "box-shadow:0 0 0 3px rgba(47,117,181,0.12);" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".button-group{" &amp; _
+                  "display:flex;" &amp; _
+                  "gap:8px;" &amp; _
+                  "flex-wrap:wrap;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".btn{" &amp; _
+                  "border:0;" &amp; _
+                  "border-radius:8px;" &amp; _
+                  "padding:10px 14px;" &amp; _
+                  "background:var(--navy);" &amp; _
+                  "color:white;" &amp; _
+                  "font-family:inherit;" &amp; _
+                  "font-size:13px;" &amp; _
+                  "cursor:pointer;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".btn:hover{background:var(--blue);}" &amp; vbCrLf
+
+    html = html &amp; ".table-wrap{" &amp; _
+                  "width:100%;" &amp; _
+                  "overflow-x:auto;" &amp; _
+                  "border:1px solid var(--border);" &amp; _
+                  "border-radius:10px;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; "table{" &amp; _
+                  "width:100%;" &amp; _
+                  "min-width:900px;" &amp; _
+                  "border-collapse:collapse;" &amp; _
+                  "background:white;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; "thead th{" &amp; _
+                  "position:sticky;" &amp; _
+                  "top:0;" &amp; _
+                  "z-index:2;" &amp; _
+                  "background:var(--navy);" &amp; _
+                  "color:white;" &amp; _
+                  "padding:12px 10px;" &amp; _
+                  "font-size:13px;" &amp; _
+                  "border-right:1px solid rgba(255,255,255,0.16);" &amp; _
+                  "white-space:nowrap;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; "tbody td,tfoot td{" &amp; _
+                  "border-top:1px solid var(--border);" &amp; _
+                  "border-right:1px solid var(--border);" &amp; _
+                  "padding:9px 10px;" &amp; _
+                  "font-size:13px;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; "tbody tr:nth-child(even){background:#F8FAFC;}" &amp; vbCrLf
+    html = html &amp; "tbody tr:hover{background:#EDF5FC;}" &amp; vbCrLf
+
+    html = html &amp; ".row-label{" &amp; _
+                  "font-weight:700;" &amp; _
+                  "color:var(--navy);" &amp; _
+                  "text-align:left;" &amp; _
+                  "white-space:nowrap;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".bar-cell{" &amp; _
+                  "min-width:150px;" &amp; _
+                  "text-align:right;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".cell-value{" &amp; _
+                  "display:block;" &amp; _
+                  "margin-bottom:5px;" &amp; _
+                  "font-weight:600;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".cell-track{" &amp; _
+                  "width:100%;" &amp; _
+                  "height:8px;" &amp; _
+                  "background:#E8EEF5;" &amp; _
+                  "border-radius:4px;" &amp; _
+                  "overflow:hidden;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".cell-bar{" &amp; _
+                  "height:100%;" &amp; _
+                  "background:linear-gradient(90deg,#5B9BD5,#2F75B5);" &amp; _
+                  "border-radius:4px;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".total-cell{" &amp; _
+                  "font-weight:700;" &amp; _
+                  "color:var(--navy);" &amp; _
+                  "background:#EDF4FA;" &amp; _
+                  "text-align:right;" &amp; _
+                  "white-space:nowrap;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; "tfoot td{" &amp; _
+                  "font-weight:700;" &amp; _
+                  "background:#DCE6F1;" &amp; _
+                  "color:var(--navy);" &amp; _
+                  "text-align:right;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".footer{" &amp; _
+                  "text-align:center;" &amp; _
+                  "padding:8px 0 24px 0;" &amp; _
+                  "color:var(--muted);" &amp; _
+                  "font-size:12px;" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; ".no-result{" &amp; _
+                  "display:none;" &amp; _
+                  "padding:20px;" &amp; _
+                  "text-align:center;" &amp; _
+                  "color:var(--muted);" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; "@media(max-width:800px){" &amp; _
+                  ".container{padding:14px;}" &amp; _
+                  ".header{padding:22px 18px;}" &amp; _
+                  ".header h1{font-size:22px;}" &amp; _
+                  ".kpi-grid{grid-template-columns:1fr;}" &amp; _
+                  ".summary-row{grid-template-columns:100px 1fr;}" &amp; _
+                  ".summary-value{grid-column:2;text-align:left;}" &amp; _
+                  ".search-box{width:100%;min-width:0;}" &amp; _
+                  ".toolbar{align-items:stretch;}" &amp; _
+                  "}" &amp; vbCrLf
+
+    html = html &amp; "&lt;/style&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;/head&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;body&gt;" &amp; vbCrLf
+
+    '--------------------------------------------------------
+    ' 6. 상단 제목
+    '--------------------------------------------------------
+    html = html &amp; "&lt;header class='header'&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;h1&gt;Copilot이 VBA로 만든 BI 대시보드&lt;/h1&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;p&gt;지점 × 제품별 매출 분석 | 생성일시: " &amp; _
+                  Format(Now, "yyyy-mm-dd hh:mm") &amp; "&lt;/p&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;/header&gt;" &amp; vbCrLf
+
+    html = html &amp; "&lt;main class='container'&gt;" &amp; vbCrLf
+
+    '--------------------------------------------------------
+    ' 7. KPI 카드
+    '--------------------------------------------------------
+    html = html &amp; "&lt;section class='kpi-grid'&gt;" &amp; vbCrLf
+
+    html = html &amp; "&lt;div class='kpi-card'&gt;" &amp; _
+                  "&lt;div class='kpi-title'&gt;총매출&lt;/div&gt;" &amp; _
+                  "&lt;div class='kpi-value'&gt;" &amp; Format(grandTotal, "#,##0") &amp; "&lt;/div&gt;" &amp; _
+                  "&lt;/div&gt;" &amp; vbCrLf
+
+    html = html &amp; "&lt;div class='kpi-card green'&gt;" &amp; _
+                  "&lt;div class='kpi-title'&gt;분석 지점 수&lt;/div&gt;" &amp; _
+                  "&lt;div class='kpi-value'&gt;" &amp; Format(branchCount, "#,##0") &amp; "&lt;/div&gt;" &amp; _
+                  "&lt;/div&gt;" &amp; vbCrLf
+
+    html = html &amp; "&lt;div class='kpi-card orange'&gt;" &amp; _
+                  "&lt;div class='kpi-title'&gt;분석 제품 수&lt;/div&gt;" &amp; _
+                  "&lt;div class='kpi-value'&gt;" &amp; Format(productCount, "#,##0") &amp; "&lt;/div&gt;" &amp; _
+                  "&lt;/div&gt;" &amp; vbCrLf
+
+    html = html &amp; "&lt;/section&gt;" &amp; vbCrLf
+
+    '--------------------------------------------------------
+    ' 8. 지점별 총매출 그래프
+    '--------------------------------------------------------
+    html = html &amp; "&lt;section class='section'&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;h2 class='section-title'&gt;지점별 총매출&lt;/h2&gt;" &amp; vbCrLf
+
+    For i = 1 To branchCount
+
+        If maxRowTotal &gt; 0 Then
+            rowBarWidth = rowTotals(i) / maxRowTotal * 100
+        Else
+            rowBarWidth = 0
+        End If
+
+        html = html &amp; "&lt;div class='summary-row'&gt;" &amp; vbCrLf
+
+        html = html &amp; "&lt;div class='summary-label' title='" &amp; _
+                      HtmlEncode(CStr(rowLabels(i))) &amp; "'&gt;" &amp; _
+                      HtmlEncode(CStr(rowLabels(i))) &amp; _
+                      "&lt;/div&gt;" &amp; vbCrLf
+
+        html = html &amp; "&lt;div class='summary-track'&gt;" &amp; _
+                      "&lt;div class='summary-bar' style='width:" &amp; _
+                      Replace(Format(rowBarWidth, "0.0"), ",", ".") &amp; "%;'&gt;&lt;/div&gt;" &amp; _
+                      "&lt;/div&gt;" &amp; vbCrLf
+
+        html = html &amp; "&lt;div class='summary-value'&gt;" &amp; _
+                      Format(rowTotals(i), "#,##0") &amp; _
+                      "&lt;/div&gt;" &amp; vbCrLf
+
+        html = html &amp; "&lt;/div&gt;" &amp; vbCrLf
+
+    Next i
+
+    html = html &amp; "&lt;/section&gt;" &amp; vbCrLf
+
+    '--------------------------------------------------------
+    ' 9. 상세 데이터 표
+    '--------------------------------------------------------
+    html = html &amp; "&lt;section class='section'&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;h2 class='section-title'&gt;지점 × 제품별 상세 매출&lt;/h2&gt;" &amp; vbCrLf
+
+    html = html &amp; "&lt;div class='toolbar'&gt;" &amp; vbCrLf
+
+    html = html &amp; "&lt;input id='searchInput' class='search-box' " &amp; _
+                  "type='text' placeholder='지점명을 입력하여 검색하세요' " &amp; _
+                  "onkeyup='filterTable()'&gt;" &amp; vbCrLf
+
+    html = html &amp; "&lt;div class='button-group'&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;button class='btn' onclick='sortTable(false)'&gt;총매출 높은 순&lt;/button&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;button class='btn' onclick='sortTable(true)'&gt;총매출 낮은 순&lt;/button&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;button class='btn' onclick='resetTable()'&gt;초기화&lt;/button&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;/div&gt;" &amp; vbCrLf
+
+    html = html &amp; "&lt;/div&gt;" &amp; vbCrLf
+
+    html = html &amp; "&lt;div class='table-wrap'&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;table id='salesTable'&gt;" &amp; vbCrLf
+
+    '표 헤더
+    html = html &amp; "&lt;thead&gt;&lt;tr&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;th&gt;지점&lt;/th&gt;" &amp; vbCrLf
+
+    For j = 1 To productCount
+        html = html &amp; "&lt;th&gt;" &amp; HtmlEncode(CStr(colLabels(j))) &amp; "&lt;/th&gt;" &amp; vbCrLf
     Next j
-    html = html &amp; "&lt;th&gt;합계&lt;/th&gt;&lt;/tr&gt;"
 
-    ' 4) 표 본문 + 막대그래프
-    Dim rowTotal As Double
-    For i = 1 To rowItems
-        rowLabel = rowField.PivotItems(i).Name
-        html = html &amp; "&lt;tr&gt;&lt;td&gt;" &amp; rowLabel &amp; "&lt;/td&gt;"
-        rowTotal = 0
-        For j = 1 To colItems
-            colLabel = colField.PivotItems(j).Name
-            cellValue = 0
-            On Error Resume Next
-            cellValue = pTable.GetPivotData("매출액 합계", _
-                "지점", rowLabel, "제품명", colLabel).Value
-            On Error GoTo 0
-            rowTotal = rowTotal + cellValue
+    html = html &amp; "&lt;th&gt;합계&lt;/th&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;/tr&gt;&lt;/thead&gt;" &amp; vbCrLf
 
-            Dim barWidth As Long
-            If maxValue > 0 Then
-                barWidth = CLng(cellValue / maxValue * 100)
+    '표 본문
+    html = html &amp; "&lt;tbody&gt;" &amp; vbCrLf
+
+    For i = 1 To branchCount
+
+        rowLabel = CStr(rowLabels(i))
+
+        html = html &amp; "&lt;tr data-original-order='" &amp; i &amp; "'&gt;" &amp; vbCrLf
+
+        html = html &amp; "&lt;td class='row-label'&gt;" &amp; _
+                      HtmlEncode(rowLabel) &amp; _
+                      "&lt;/td&gt;" &amp; vbCrLf
+
+        For j = 1 To productCount
+
+            colLabel = CStr(colLabels(j))
+
+            cellValue = GetPivotValueSafe( _
+                            pTable, _
+                            DATA_FIELD_NAME, _
+                            ROW_FIELD_NAME, _
+                            rowLabel, _
+                            COLUMN_FIELD_NAME, _
+                            colLabel)
+
+            If maxCellValue &gt; 0 Then
+                barWidth = cellValue / maxCellValue * 100
             Else
                 barWidth = 0
             End If
 
-            html = html &amp; "&lt;td class='bar-cell'&gt;"
-            html = html &amp; Format(cellValue, "#,##0")
-            html = html &amp; "&lt;div class='bar' style='width:" &amp; barWidth &amp; "%;'&gt;&lt;/div&gt;"
-            html = html &amp; "&lt;/td&gt;"
+            html = html &amp; "&lt;td class='bar-cell' data-value='" &amp; _
+                          Replace(CStr(cellValue), ",", ".") &amp; "'&gt;" &amp; vbCrLf
+
+            html = html &amp; "&lt;span class='cell-value'&gt;" &amp; _
+                          Format(cellValue, "#,##0") &amp; _
+                          "&lt;/span&gt;" &amp; vbCrLf
+
+            html = html &amp; "&lt;div class='cell-track'&gt;" &amp; _
+                          "&lt;div class='cell-bar' style='width:" &amp; _
+                          Replace(Format(barWidth, "0.0"), ",", ".") &amp; "%;'&gt;" &amp; _
+                          "&lt;/div&gt;&lt;/div&gt;" &amp; vbCrLf
+
+            html = html &amp; "&lt;/td&gt;" &amp; vbCrLf
+
         Next j
-        html = html &amp; "&lt;td&gt;&lt;b&gt;" &amp; Format(rowTotal, "#,##0") &amp; "&lt;/b&gt;&lt;/td&gt;&lt;/tr&gt;"
+
+        html = html &amp; "&lt;td class='total-cell' data-total='" &amp; _
+                      Replace(CStr(rowTotals(i)), ",", ".") &amp; "'&gt;" &amp; _
+                      Format(rowTotals(i), "#,##0") &amp; _
+                      "&lt;/td&gt;" &amp; vbCrLf
+
+        html = html &amp; "&lt;/tr&gt;" &amp; vbCrLf
+
     Next i
-    html = html &amp; "&lt;/table&gt;&lt;/body&gt;&lt;/html&gt;"
 
-    ' 5) 파일로 저장 (UTF-8)
-    outputPath = ThisWorkbook.Path &amp; "\매출대시보드.html"
-    fNum = FreeFile
-    Open outputPath For Output As #fNum
-    Print #fNum, html
-    Close #fNum
+    html = html &amp; "&lt;/tbody&gt;" &amp; vbCrLf
 
-    MsgBox "HTML 대시보드가 생성되었습니다:" &amp; vbCrLf &amp; outputPath, vbInformation
+    '표 하단 제품별 합계
+    html = html &amp; "&lt;tfoot&gt;&lt;tr&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;td&gt;제품별 합계&lt;/td&gt;" &amp; vbCrLf
 
-    ' 6) 기본 브라우저로 자동 열기
-    ThisWorkbook.FollowHyperlink outputPath
+    For j = 1 To productCount
+        html = html &amp; "&lt;td&gt;" &amp; Format(productTotals(j), "#,##0") &amp; "&lt;/td&gt;" &amp; vbCrLf
+    Next j
+
+    html = html &amp; "&lt;td&gt;" &amp; Format(grandTotal, "#,##0") &amp; "&lt;/td&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;/tr&gt;&lt;/tfoot&gt;" &amp; vbCrLf
+
+    html = html &amp; "&lt;/table&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;div id='noResult' class='no-result'&gt;검색 결과가 없습니다.&lt;/div&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;/div&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;/section&gt;" &amp; vbCrLf
+
+    html = html &amp; "&lt;/main&gt;" &amp; vbCrLf
+
+    html = html &amp; "&lt;footer class='footer'&gt;" &amp; _
+                  "Excel PivotTable 데이터를 기반으로 생성된 오프라인 HTML 대시보드" &amp; _
+                  "&lt;/footer&gt;" &amp; vbCrLf
+
+    '--------------------------------------------------------
+    ' 10. JavaScript 검색 및 정렬
+    '--------------------------------------------------------
+    html = html &amp; "&lt;script&gt;" &amp; vbCrLf
+
+    html = html &amp; "function filterTable(){" &amp; vbCrLf
+    html = html &amp; " const input=document.getElementById('searchInput');" &amp; vbCrLf
+    html = html &amp; " const filter=input.value.toLowerCase().trim();" &amp; vbCrLf
+    html = html &amp; " const tbody=document.querySelector('#salesTable tbody');" &amp; vbCrLf
+    html = html &amp; " const rows=Array.from(tbody.rows);" &amp; vbCrLf
+    html = html &amp; " let visibleCount=0;" &amp; vbCrLf
+    html = html &amp; " rows.forEach(function(row){" &amp; vbCrLf
+    html = html &amp; "  const branch=row.cells[0].textContent.toLowerCase();" &amp; vbCrLf
+    html = html &amp; "  const show=branch.indexOf(filter)&gt;-1;" &amp; vbCrLf
+    html = html &amp; "  row.style.display=show?'':'none';" &amp; vbCrLf
+    html = html &amp; "  if(show){visibleCount++;}" &amp; vbCrLf
+    html = html &amp; " });" &amp; vbCrLf
+    html = html &amp; " document.getElementById('noResult').style.display=" &amp; _
+                  "visibleCount===0?'block':'none';" &amp; vbCrLf
+    html = html &amp; "}" &amp; vbCrLf
+
+    html = html &amp; "function sortTable(ascending){" &amp; vbCrLf
+    html = html &amp; " const tbody=document.querySelector('#salesTable tbody');" &amp; vbCrLf
+    html = html &amp; " const rows=Array.from(tbody.rows);" &amp; vbCrLf
+    html = html &amp; " rows.sort(function(a,b){" &amp; vbCrLf
+    html = html &amp; "  const aTotal=parseFloat(a.cells[a.cells.length-1].dataset.total)||0;" &amp; vbCrLf
+    html = html &amp; "  const bTotal=parseFloat(b.cells[b.cells.length-1].dataset.total)||0;" &amp; vbCrLf
+    html = html &amp; "  return ascending?aTotal-bTotal:bTotal-aTotal;" &amp; vbCrLf
+    html = html &amp; " });" &amp; vbCrLf
+    html = html &amp; " rows.forEach(function(row){tbody.appendChild(row);});" &amp; vbCrLf
+    html = html &amp; "}" &amp; vbCrLf
+
+    html = html &amp; "function resetTable(){" &amp; vbCrLf
+    html = html &amp; " const input=document.getElementById('searchInput');" &amp; vbCrLf
+    html = html &amp; " input.value='';" &amp; vbCrLf
+    html = html &amp; " const tbody=document.querySelector('#salesTable tbody');" &amp; vbCrLf
+    html = html &amp; " const rows=Array.from(tbody.rows);" &amp; vbCrLf
+    html = html &amp; " rows.sort(function(a,b){" &amp; vbCrLf
+    html = html &amp; "  return Number(a.dataset.originalOrder)-Number(b.dataset.originalOrder);" &amp; vbCrLf
+    html = html &amp; " });" &amp; vbCrLf
+    html = html &amp; " rows.forEach(function(row){" &amp; vbCrLf
+    html = html &amp; "  row.style.display='';" &amp; vbCrLf
+    html = html &amp; "  tbody.appendChild(row);" &amp; vbCrLf
+    html = html &amp; " });" &amp; vbCrLf
+    html = html &amp; " document.getElementById('noResult').style.display='none';" &amp; vbCrLf
+    html = html &amp; "}" &amp; vbCrLf
+
+    html = html &amp; "&lt;/script&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;/body&gt;" &amp; vbCrLf
+    html = html &amp; "&lt;/html&gt;" &amp; vbCrLf
+
+    '--------------------------------------------------------
+    ' 11. 저장 경로 설정
+    '--------------------------------------------------------
+    If Len(ThisWorkbook.Path) &gt; 0 Then
+        outputPath = ThisWorkbook.Path &amp; Application.PathSeparator &amp; _
+                     "Copilot_VBA_BI_매출대시보드.html"
+    Else
+        outputPath = Environ$("USERPROFILE") &amp; "\Downloads\" &amp; _
+                     "Copilot_VBA_BI_매출대시보드.html"
+    End If
+
+    '--------------------------------------------------------
+    ' 12. UTF-8 형식으로 HTML 저장
+    '--------------------------------------------------------
+    SaveTextAsUTF8 html, outputPath
+
+    Application.StatusBar = False
+    Application.ScreenUpdating = True
+
+    MsgBox "Copilot BI 대시보드가 생성되었습니다." &amp; vbCrLf &amp; vbCrLf &amp; _
+           "저장 위치:" &amp; vbCrLf &amp; outputPath, _
+           vbInformation, _
+           "BI 대시보드 생성 완료"
+
+    '--------------------------------------------------------
+    ' 13. 기본 브라우저로 자동 실행
+    '--------------------------------------------------------
+    ThisWorkbook.FollowHyperlink Address:=outputPath
+
+    Exit Sub
+
+ErrorHandler:
+
+    MsgBox "대시보드 생성 중 오류가 발생했습니다." &amp; vbCrLf &amp; vbCrLf &amp; _
+           "오류 번호: " &amp; Err.Number &amp; vbCrLf &amp; _
+           "오류 내용: " &amp; Err.Description &amp; vbCrLf &amp; vbCrLf &amp; _
+           "다음 항목을 확인해 주세요." &amp; vbCrLf &amp; _
+           "1. 시트명: " &amp; SHEET_NAME &amp; vbCrLf &amp; _
+           "2. 피벗테이블명: " &amp; PIVOT_NAME &amp; vbCrLf &amp; _
+           "3. 행 필드명: " &amp; ROW_FIELD_NAME &amp; vbCrLf &amp; _
+           "4. 열 필드명: " &amp; COLUMN_FIELD_NAME &amp; vbCrLf &amp; _
+           "5. 값 필드명: " &amp; DATA_FIELD_NAME, _
+           vbCritical, _
+           "오류 발생"
+
+ExitHandler:
+
+    Application.StatusBar = False
+    Application.ScreenUpdating = True
+
+End Sub
+
+
+'============================================================
+' 피벗테이블 값 안전하게 가져오기
+' 데이터가 없거나 GetPivotData 오류 발생 시 0 반환
+'============================================================
+Private Function GetPivotValueSafe( _
+    ByVal pTable As PivotTable, _
+    ByVal dataFieldName As String, _
+    ByVal rowFieldName As String, _
+    ByVal rowItemName As String, _
+    ByVal columnFieldName As String, _
+    ByVal columnItemName As String) As Double
+
+    Dim resultValue As Variant
+
+    On Error GoTo ValueError
+
+    resultValue = pTable.GetPivotData( _
+                    dataFieldName, _
+                    rowFieldName, rowItemName, _
+                    columnFieldName, columnItemName).Value
+
+    If IsError(resultValue) Then
+        GetPivotValueSafe = 0
+    ElseIf IsNumeric(resultValue) Then
+        GetPivotValueSafe = CDbl(resultValue)
+    Else
+        GetPivotValueSafe = 0
+    End If
+
+    Exit Function
+
+ValueError:
+
+    GetPivotValueSafe = 0
+    Err.Clear
+
+End Function
+
+
+'============================================================
+' 화면에 표시되는 피벗 항목만 Collection으로 반환
+' 총합계, 빈 항목, 숨김 항목 제외
+'============================================================
+Private Function GetVisiblePivotItems( _
+    ByVal targetField As PivotField) As Collection
+
+    Dim result As New Collection
+    Dim pItem As PivotItem
+    Dim itemName As String
+    Dim isVisible As Boolean
+
+    For Each pItem In targetField.PivotItems
+
+        itemName = Trim$(CStr(pItem.Name))
+        isVisible = True
+
+        On Error Resume Next
+        isVisible = pItem.Visible
+        On Error GoTo 0
+
+        If isVisible Then
+
+            If Len(itemName) &gt; 0 _
+               And itemName &lt;&gt; "(blank)" _
+               And itemName &lt;&gt; "(공백)" _
+               And itemName &lt;&gt; "총합계" _
+               And LCase$(itemName) &lt;&gt; "grand total" Then
+
+                result.Add itemName
+
+            End If
+
+        End If
+
+    Next pItem
+
+    Set GetVisiblePivotItems = result
+
+End Function
+
+
+'============================================================
+' HTML 특수문자 변환
+' 지점명 또는 제품명에 &amp;, &lt;, &gt;, 따옴표가 있어도 오류 방지
+'============================================================
+Private Function HtmlEncode(ByVal sourceText As String) As String
+
+    Dim encodedText As String
+
+    encodedText = sourceText
+    encodedText = Replace(encodedText, "&amp;", "&amp;amp;")
+    encodedText = Replace(encodedText, "&lt;", "&amp;lt;")
+    encodedText = Replace(encodedText, "&gt;", "&amp;gt;")
+    encodedText = Replace(encodedText, """", "&amp;quot;")
+    encodedText = Replace(encodedText, "'", "&amp;#39;")
+
+    HtmlEncode = encodedText
+
+End Function
+
+
+'============================================================
+' ADODB.Stream을 이용한 UTF-8 파일 저장
+' 참조 설정 없이 CreateObject 방식으로 실행
+'============================================================
+Private Sub SaveTextAsUTF8( _
+    ByVal textContent As String, _
+    ByVal filePath As String)
+
+    Dim streamObject As Object
+
+    On Error GoTo SaveError
+
+    Set streamObject = CreateObject("ADODB.Stream")
+
+    With streamObject
+
+        '2 = 텍스트 데이터
+        .Type = 2
+
+        'UTF-8 문자 인코딩
+        .Charset = "utf-8"
+
+        .Open
+
+        '생성된 HTML 전체 입력
+        .WriteText textContent
+
+        '2 = 기존 파일이 있으면 덮어쓰기
+        .SaveToFile filePath, 2
+
+        .Close
+
+    End With
+
+    Set streamObject = Nothing
+
+    Exit Sub
+
+SaveError:
+
+    If Not streamObject Is Nothing Then
+        On Error Resume Next
+        streamObject.Close
+        Set streamObject = Nothing
+        On Error GoTo 0
+    End If
+
+    Err.Raise Err.Number, "SaveTextAsUTF8", Err.Description
+
 End Sub</code></pre>
       </div>
 
       <h3>코드 설명</h3>
       <ul>
-        <li><b>GetPivotData</b> : 피벗 테이블에서 특정 행/열 조건에 해당하는 값을 읽어오는 함수입니다.</li>
-        <li>막대그래프는 실제 차트가 아니라, 각 셀 안에 값 비율만큼 너비를 가진 &lt;div&gt; 막대를 CSS로 그려 표현한 것입니다.</li>
-        <li><b>Open ... For Output / Print #fNum / Close #fNum</b> : 텍스트 파일(HTML)을 만들고 저장하는 VBA의 기본 파일 입출력 구문입니다.</li>
-        <li><b>FollowHyperlink</b> : 생성한 HTML 파일을 기본 웹 브라우저로 바로 열어줍니다.</li>
+        <li><b>GetVisiblePivotItems</b> : 피벗 필드에서 화면에 실제로 표시되는 항목만 Collection으로 모아, 숨김 항목·빈 항목·총합계 행을 제외하고 대시보드에 반영합니다.</li>
+        <li><b>GetPivotValueSafe</b> : GetPivotData 호출 시 데이터가 없어 오류가 나더라도 0을 반환하도록 예외 처리하여 매크로가 중단되지 않게 합니다.</li>
+        <li><b>HtmlEncode</b> : 지점명·제품명에 &amp;, &lt;, &gt;, 따옴표가 포함되어 있어도 HTML이 깨지지 않도록 특수문자를 변환합니다.</li>
+        <li><b>SaveTextAsUTF8 (ADODB.Stream)</b> : Charset을 "utf-8"로 지정해 텍스트를 저장하는 방식으로, 참조 설정 없이 CreateObject만으로 동작하며 한글 인코딩 문제를 근본적으로 방지합니다.</li>
+        <li><b>KPI 카드 / 막대그래프</b> : 실제 차트 객체가 아니라 값 비율만큼 너비를 갖는 &lt;div&gt; 막대를 CSS로 그려 표현한 것입니다.</li>
+        <li><b>filterTable() / sortTable() / resetTable()</b> : 자바스크립트로 구현된 검색, 정렬, 초기화 기능으로 별도 서버 없이 브라우저에서만 동작합니다.</li>
       </ul>
-      <div class="note">💡 실전에서는 Chart.js 같은 외부 라이브러리 CDN을 &lt;script&gt; 태그로 추가하면 더 화려한 인터랙티브 차트도 만들 수 있습니다. (인터넷 연결 필요)</div>
+      <div class="note">💡 오류가 발생하면 메시지 박스에 시트명·피벗테이블명·행/열/값 필드명이 함께 출력되므로, 실습 5에서 설정한 이름과 일치하는지 바로 확인할 수 있습니다.</div>
     </section>
 
     <section class="step" id="faq">
