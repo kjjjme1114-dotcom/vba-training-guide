@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VBA 코드 활용 실습 교재</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+<div class="layout">
+
+  <aside class="sidebar">
+    <h1>VBA 실습 교재</h1>
+    <div class="subtitle">엑셀 매크로 기초 → 취합 → 피벗 → HTML 대시보드</div>
+    <nav>
+      <a href="#intro">준비 사항</a>
+      <a href="#step1">1. 기초 실습 (Hello)</a>
+      <a href="#step2">2. 글자 색깔·폰트</a>
+      <a href="#step3">3. 버튼으로 실행</a>
+      <a href="#step4">4. 파일 3개 취합</a>
+      <a href="#step5">5. 피벗 테이블 생성</a>
+      <a href="#step6">6. HTML 대시보드</a>
+      <a href="#faq">부록. 오류 해결</a>
+    </nav>
+
+    <div class="downloads">
+      <h2>자료 다운로드</h2>
+      <a class="file-link" href="downloads/VBA_실습교재.docx" download>📄 실습교재 (Word)</a>
+      <a class="file-link" href="downloads/서울지점_판매현황.xlsx" download>📊 서울지점_판매현황.xlsx</a>
+      <a class="file-link" href="downloads/부산지점_판매현황.xlsx" download>📊 부산지점_판매현황.xlsx</a>
+      <a class="file-link" href="downloads/대구지점_판매현황.xlsx" download>📊 대구지점_판매현황.xlsx</a>
+    </div>
+  </aside>
+
+  <main>
+    <header class="hero">
+      <h1>VBA 코드 활용 실습 교재</h1>
+      <p>엑셀 매크로 기초부터 매출 데이터 취합 · 피벗 · HTML 대시보드 자동화까지, 코드는 버튼 하나로 복사해서 바로 사용하세요.</p>
+    </header>
+
+    <section class="step" id="intro">
+      <h2>실습 준비 사항</h2>
+      <ol>
+        <li>엑셀 리본 메뉴에서 [파일] &gt; [옵션] &gt; [리본 사용자 지정] &gt; 오른쪽 목록에서 <b>'개발 도구'</b> 체크 → 확인</li>
+        <li>VBA 코드를 입력할 때는 [개발 도구] 탭 &gt; [Visual Basic] (단축키 <b>Alt + F11</b>)을 눌러 VBA 편집기(VBE)를 엽니다.</li>
+        <li>매크로가 포함된 파일은 반드시 <b>'.xlsm'</b> (매크로 사용 통합 문서) 형식으로 저장해야 합니다.</li>
+        <li>코드를 실행하려면 VBE 창에서 커서를 코드 안에 두고 F5 키를 누르거나, 실습 3에서 배우는 '버튼'을 사용합니다.</li>
+      </ol>
+      <div class="note">💡 좌측 "자료 다운로드"에서 예제 엑셀 파일 3종과 Word 실습교재를 미리 받아두세요.</div>
+    </section>
+
+    <section class="step" id="step1">
+      <h2>실습 1. 기초 실습 - A1 셀에 'Hello' 자동 입력하기</h2>
+      <p>가장 기본적인 VBA 문법인 '셀에 값 쓰기'를 실습합니다. 매크로를 실행하면 현재 활성화된 시트의 A1 셀에 'Hello'라는 문자열이 자동으로 입력됩니다.</p>
+
+      <h3>실습 절차</h3>
+      <ol>
+        <li>Alt + F11 을 눌러 VBA 편집기를 엽니다.</li>
+        <li>왼쪽 프로젝트 창에서 통합 문서를 선택한 뒤, 상단 메뉴 [삽입] &gt; [모듈]을 클릭합니다.</li>
+        <li>생성된 모듈 창에 아래 코드를 입력합니다.</li>
+      </ol>
+
+      <div class="code-block">
+        <button class="copy-btn" data-target="code1">📋 복사</button>
+        <pre id="code1"><code>Sub Hello_Input()
+    ' A열 1행(A1 셀)에 'Hello' 문자열을 입력하는 매크로
+    Range("A1").Value = "Hello"
+End Sub</code></pre>
+      </div>
+
+      <ol start="4">
+        <li>커서를 코드 안에 두고 F5 키를 눌러 실행합니다.</li>
+        <li>엑셀 시트로 돌아가 A1 셀에 'Hello'가 입력되었는지 확인합니다.</li>
+      </ol>
+
+      <h3>코드 설명</h3>
+      <ul>
+        <li><b>Sub ~ End Sub</b> : 하나의 매크로(프로시저)의 시작과 끝을 의미합니다.</li>
+        <li><b>Range("A1")</b> : 워크시트의 A1 셀을 가리키는 객체입니다.</li>
+        <li><b>Value</b> : 셀에 들어갈 값을 지정하는 속성입니다.</li>
+      </ul>
+      <div class="note">💡 Range("A1") 대신 Cells(1, 1) 로도 동일하게 표현할 수 있습니다. (Cells(행, 열) 순서)</div>
+    </section>
+
+    <section class="step" id="step2">
+      <h2>실습 2. 글자 색깔과 폰트 바꾸기</h2>
+      <p>실습 1에서 만든 코드를 확장하여, 셀에 값을 입력한 후 폰트 종류·크기·굵기·글자 색을 함께 지정하는 방법을 익힙니다.</p>
+
+      <div class="code-block">
+        <button class="copy-btn" data-target="code2">📋 복사</button>
+        <pre id="code2"><code>Sub Hello_Format()
+    Dim tgt As Range
+    Set tgt = Range("A1")
+
+    ' 1) 값 입력
+    tgt.Value = "Hello"
+
+    ' 2) 폰트 이름과 크기 지정
+    tgt.Font.Name = "맑은 고딕"
+    tgt.Font.Size = 20
+
+    ' 3) 굵게, 기울임 지정
+    tgt.Font.Bold = True
+    tgt.Font.Italic = False
+
+    ' 4) 글자 색깔 지정 (RGB 방식: 빨강)
+    tgt.Font.Color = RGB(255, 0, 0)
+
+    ' 5) 셀 배경색 지정 (선택 사항: 연한 노랑)
+    tgt.Interior.Color = RGB(255, 242, 204)
+End Sub</code></pre>
+      </div>
+
+      <h3>코드 설명</h3>
+      <ul>
+        <li><b>Font.Name</b> : 글꼴을 지정합니다. (예: "맑은 고딕", "굴림", "Arial")</li>
+        <li><b>Font.Size</b> : 글자 크기(포인트)를 지정합니다.</li>
+        <li><b>Font.Bold / Font.Italic</b> : True/False로 굵게·기울임 여부를 설정합니다.</li>
+        <li><b>Font.Color = RGB(R, G, B)</b> : 0~255 사이의 값으로 색을 표현합니다. RGB(255,0,0)은 빨강입니다.</li>
+        <li><b>Interior.Color</b> : 셀의 배경(채우기) 색을 지정합니다.</li>
+      </ul>
+      <div class="note">💡 RGB 대신 vbRed, vbBlue 같은 VBA 내장 색상 상수를 사용할 수도 있습니다. 예: tgt.Font.Color = vbRed</div>
+    </section>
+
+    <section class="step" id="step3">
+      <h2>실습 3. 매크로를 버튼으로 만들어 실행하기</h2>
+      <p>매번 F5 키를 누르거나 매크로 목록에서 찾지 않고, 시트에 버튼을 배치하여 클릭 한 번으로 매크로를 실행하는 방법을 익힙니다.</p>
+
+      <h3>실습 절차</h3>
+      <ol>
+        <li>[개발 도구] 탭 &gt; [삽입] &gt; '양식 컨트롤' 영역에서 '단추(양식 컨트롤)' 아이콘을 선택합니다.</li>
+        <li>워크시트에서 버튼을 삽입할 위치를 드래그하여 버튼을 그립니다.</li>
+        <li>'매크로 지정' 창이 자동으로 뜨면, 앞서 만든 Hello_Format 매크로를 선택하고 [확인]을 클릭합니다.</li>
+        <li>버튼을 마우스 오른쪽 클릭 &gt; [텍스트 편집]으로 버튼 이름을 '실행' 등으로 바꿉니다.</li>
+        <li>버튼을 클릭하여 매크로가 정상 실행되는지 확인합니다.</li>
+      </ol>
+
+      <div class="note">💡 이미 만든 버튼에 다른 매크로를 연결하고 싶다면, 버튼 위에서 마우스 오른쪽 클릭 &gt; [매크로 지정]에서 다시 선택할 수 있습니다.</div>
+      <div class="note">💡 그림/도형(SmartArt 등)에도 동일한 방식으로 마우스 오른쪽 클릭 &gt; [매크로 지정]을 적용하면 버튼처럼 사용할 수 있습니다.</div>
+
+      <h3>참고: 버튼 클릭 시 실행될 매크로 예시</h3>
+      <div class="code-block">
+        <button class="copy-btn" data-target="code3">📋 복사</button>
+        <pre id="code3"><code>Sub ResetAndRun()
+    ' 버튼 클릭 시 A1을 초기화하고 다시 서식을 적용하는 예시
+    Range("A1").ClearContents
+    Range("A1").ClearFormats
+    Call Hello_Format   ' 실습 2에서 만든 매크로 호출
+End Sub</code></pre>
+      </div>
+      <div class="note">💡 Call 키워드로 다른 Sub 프로시저를 호출하면, 매크로를 재사용하고 코드를 모듈화할 수 있습니다.</div>
+    </section>
+
+    <section class="step" id="step4">
+      <h2>실습 4. 지점별 매출 파일 3개 취합하기</h2>
+      <p>실제 업무에서 가장 많이 쓰이는 '여러 엑셀 파일을 하나로 합치기' 실습입니다. 식품회사의 지점별 판매사원 매출 현황 예제 파일 3개를 제공하며, 이를 VBA로 자동 취합합니다.</p>
+
+      <h3>제공 예제 파일</h3>
+      <ul>
+        <li><b>서울지점_판매현황.xlsx</b> (김민준, 이서연, 박도윤)</li>
+        <li><b>부산지점_판매현황.xlsx</b> (최지훈, 정하윤)</li>
+        <li><b>대구지점_판매현황.xlsx</b> (강예준, 윤소율, 임지호)</li>
+      </ul>
+      <p>각 파일은 '매출현황' 시트에 아래와 같은 동일한 열 구조를 갖고 있습니다. (취급 제품: 오리온 초코파이, 농심 신라면, 롯데 빼빼로, 해태 홈런볼, 오뚜기 진라면)</p>
+
+      <table class="spec">
+        <tr><th>날짜</th><th>지점</th><th>담당자</th><th>제품명</th><th>판매수량</th><th>단가</th><th>매출액</th></tr>
+        <tr><td>2026-09-01</td><td>서울지점</td><td>김민준</td><td>농심 신라면</td><td>32</td><td>4,200</td><td>134,400</td></tr>
+      </table>
+
+      <h3>실습 절차</h3>
+      <ol>
+        <li>새 통합 문서를 만들고 '취합_전체매출.xlsm' 이름으로 매크로 사용 통합 문서로 저장합니다.</li>
+        <li>예제 파일 3개를 취합 파일과 동일한 폴더 하위의 <b>예제파일</b> 폴더에 위치시킵니다.</li>
+        <li>Alt + F11 &gt; 모듈 삽입 후 아래 코드를 입력합니다.</li>
+      </ol>
+
+      <div class="code-block">
+        <button class="copy-btn" data-target="code4">📋 복사</button>
+        <pre id="code4"><code>Sub Consolidate_Branch_Sales()
+    ' ==========================================================
+    ' 지정한 폴더 안의 지점별 판매현황(*.xlsx) 파일을 모두 읽어
+    ' 현재 통합 문서의 "취합데이터" 시트에 한 번에 모으는 매크로
+    ' ==========================================================
+    Dim FolderPath As String
+    Dim FileName As String
+    Dim wbSrc As Workbook
+    Dim wsSrc As Worksheet
+    Dim wsDst As Worksheet
+    Dim lastRowSrc As Long
+    Dim lastRowDst As Long
+
+    ' 1) 원본 파일들이 들어있는 폴더 경로 (환경에 맞게 수정)
+    FolderPath = ThisWorkbook.Path & "\예제파일\"
+
+    ' 2) 취합 결과를 넣을 시트 준비 (있으면 초기화, 없으면 새로 생성)
+    On Error Resume Next
+    Set wsDst = ThisWorkbook.Worksheets("취합데이터")
+    On Error GoTo 0
+    If wsDst Is Nothing Then
+        Set wsDst = ThisWorkbook.Worksheets.Add
+        wsDst.Name = "취합데이터"
+    Else
+        wsDst.Cells.Clear
+    End If
+
+    ' 3) 헤더 작성
+    wsDst.Range("A1:G1").Value = Array("날짜", "지점", "담당자", "제품명", "판매수량", "단가", "매출액")
+    wsDst.Range("A1:G1").Font.Bold = True
+
+    Application.ScreenUpdating = False
+
+    ' 4) 폴더 내 모든 xlsx 파일 순회
+    FileName = Dir(FolderPath & "*.xlsx")
+    Do While FileName <> ""
+        Set wbSrc = Workbooks.Open(FolderPath & FileName, ReadOnly:=True)
+        Set wsSrc = wbSrc.Worksheets("매출현황")
+
+        lastRowSrc = wsSrc.Cells(wsSrc.Rows.Count, "A").End(xlUp).Row
+        lastRowDst = wsDst.Cells(wsDst.Rows.Count, "A").End(xlUp).Row
+
+        If lastRowSrc >= 2 Then
+            wsSrc.Range("A2:G" & lastRowSrc).Copy _
+                Destination:=wsDst.Cells(lastRowDst + 1, 1)
+        End If
+
+        wbSrc.Close SaveChanges:=False
+        FileName = Dir   ' 다음 파일명으로 이동
+    Loop
+
+    wsDst.Columns("A:G").AutoFit
+    wsDst.Range("A1").Select
+
+    Application.ScreenUpdating = True
+    MsgBox "취합이 완료되었습니다!", vbInformation
+End Sub</code></pre>
+      </div>
+
+      <h3>코드 설명</h3>
+      <ul>
+        <li><b>Dir(FolderPath &amp; "*.xlsx")</b> : 폴더 안의 xlsx 파일명을 하나씩 가져옵니다. 반복문 안에서 인수 없이 Dir을 다시 호출하면 다음 파일명을 반환합니다.</li>
+        <li><b>Workbooks.Open ... ReadOnly:=True</b> : 원본 파일을 읽기 전용으로 열어 실수로 원본이 수정되는 것을 방지합니다.</li>
+        <li><b>End(xlUp)</b> : 해당 열의 마지막 데이터가 있는 행을 찾는 코드로, 표 범위가 매번 달라도 자동으로 대응합니다.</li>
+        <li><b>wbSrc.Close SaveChanges:=False</b> : 원본 파일은 저장하지 않고 닫습니다.</li>
+      </ul>
+      <div class="note">💡 만약 시트 이름이 파일마다 다르다면, wsSrc = wbSrc.Worksheets("매출현황") 부분을 wbSrc.Worksheets(1) (첫 번째 시트) 로 바꾸면 시트 이름에 상관없이 동작합니다.</div>
+    </section>
+
+    <section class="step" id="step5">
+      <h2>실습 5. 취합된 자료로 피벗 테이블 만들기</h2>
+      <p>실습 4에서 만든 '취합데이터' 시트를 원본으로 하여, 지점 × 제품별 매출 합계를 보여주는 피벗 테이블을 VBA로 자동 생성합니다.</p>
+
+      <div class="code-block">
+        <button class="copy-btn" data-target="code5">📋 복사</button>
+        <pre id="code5"><code>Sub Create_Pivot_From_Consolidated()
+    Dim wsData As Worksheet
+    Dim wsPivot As Worksheet
+    Dim pCache As PivotCache
+    Dim pTable As PivotTable
+    Dim srcRange As Range
+    Dim lastRow As Long, lastCol As Long
+
+    Set wsData = ThisWorkbook.Worksheets("취합데이터")
+
+    ' 1) 원본 데이터 범위 자동 설정
+    lastRow = wsData.Cells(wsData.Rows.Count, "A").End(xlUp).Row
+    lastCol = wsData.Cells(1, wsData.Columns.Count).End(xlToLeft).Column
+    Set srcRange = wsData.Range(wsData.Cells(1, 1), wsData.Cells(lastRow, lastCol))
+
+    ' 2) 기존 "피벗분석" 시트가 있으면 삭제 후 재생성
+    Application.DisplayAlerts = False
+    On Error Resume Next
+    ThisWorkbook.Worksheets("피벗분석").Delete
+    On Error GoTo 0
+    Application.DisplayAlerts = True
+
+    Set wsPivot = ThisWorkbook.Worksheets.Add
+    wsPivot.Name = "피벗분석"
+
+    ' 3) 피벗 캐시 및 피벗 테이블 생성
+    Set pCache = ThisWorkbook.PivotCaches.Create( _
+        SourceType:=xlDatabase, _
+        SourceData:=srcRange)
+
+    Set pTable = pCache.CreatePivotTable( _
+        TableDestination:=wsPivot.Range("A3"), _
+        TableName:="pt_지점제품매출")
+
+    ' 4) 행/열/값 필드 배치
+    With pTable
+        .PivotFields("지점").Orientation = xlRowField
+        .PivotFields("제품명").Orientation = xlColumnField
+
+        With .PivotFields("매출액")
+            .Orientation = xlDataField
+            .Function = xlSum
+            .NumberFormat = "#,##0"
+            .Caption = "매출액 합계"
+        End With
+
+        With .PivotFields("판매수량")
+            .Orientation = xlDataField
+            .Function = xlSum
+            .NumberFormat = "#,##0"
+            .Caption = "판매수량 합계"
+        End With
+    End With
+
+    wsPivot.Range("A1").Value = "지점 x 제품별 매출 피벗 분석"
+    wsPivot.Range("A1").Font.Bold = True
+    wsPivot.Range("A1").Font.Size = 14
+
+    MsgBox "피벗 테이블이 생성되었습니다!", vbInformation
+End Sub</code></pre>
+      </div>
+
+      <h3>코드 설명</h3>
+      <ul>
+        <li><b>PivotCaches.Create</b> : 원본 데이터를 메모리에 캐시로 저장하여 피벗 테이블이 참조할 수 있게 합니다.</li>
+        <li><b>xlRowField / xlColumnField / xlDataField</b> : 필드를 각각 행, 열, 값(데이터) 영역에 배치하는 설정입니다.</li>
+        <li><b>Function = xlSum</b> : 값 영역에서 집계 방식을 '합계'로 지정합니다. (xlCount, xlAverage 등도 가능)</li>
+        <li>담당자별로 더 세분화하고 싶다면 <code>.PivotFields("담당자").Orientation = xlRowField</code> 를 추가하면 됩니다.</li>
+      </ul>
+      <div class="note">💡 실습 전 [개발 도구] &gt; [매크로 보안]에서 매크로 실행이 허용되어 있는지 확인하세요. 또한 이 매크로는 실습 4의 결과(취합데이터 시트)가 먼저 만들어져 있어야 합니다.</div>
+    </section>
+
+    <section class="step" id="step6">
+      <h2>실습 6. 피벗 결과를 HTML 대시보드로 만들기</h2>
+      <p>실습 5에서 만든 피벗 테이블 데이터를 읽어와, 웹 브라우저에서 바로 열어볼 수 있는 간단한 HTML 대시보드 파일(.html)을 자동 생성하는 매크로입니다.</p>
+
+      <div class="code-block">
+        <button class="copy-btn" data-target="code6">📋 복사</button>
+        <pre id="code6"><code>Sub Export_Pivot_To_HTML()
+    Dim wsPivot As Worksheet
+    Dim pTable As PivotTable
+    Dim html As String
+    Dim rowField As PivotField
+    Dim colField As PivotField
+    Dim i As Long, j As Long
+    Dim rowItems As Long, colItems As Long
+    Dim rowLabel As String, colLabel As String
+    Dim cellValue As Double
+    Dim maxValue As Double
+    Dim outputPath As String
+    Dim fNum As Integer
+
+    Set wsPivot = ThisWorkbook.Worksheets("피벗분석")
+    Set pTable = wsPivot.PivotTables("pt_지점제품매출")
+
+    Set rowField = pTable.PivotFields("지점")
+    Set colField = pTable.PivotFields("제품명")
+    rowItems = rowField.PivotItems.Count
+    colItems = colField.PivotItems.Count
+
+    ' 1) 최대값 계산 (막대그래프 비율에 사용)
+    maxValue = 0
+    For i = 1 To rowItems
+        For j = 1 To colItems
+            On Error Resume Next
+            cellValue = pTable.GetPivotData("매출액 합계", _
+                "지점", rowField.PivotItems(i).Name, _
+                "제품명", colField.PivotItems(j).Name).Value
+            On Error GoTo 0
+            If cellValue > maxValue Then maxValue = cellValue
+        Next j
+    Next i
+
+    ' 2) HTML 문서 작성 시작
+    html = "&lt;!DOCTYPE html&gt;&lt;html lang='ko'&gt;&lt;head&gt;&lt;meta charset='UTF-8'&gt;"
+    html = html &amp; "&lt;title&gt;지점별 매출 대시보드&lt;/title&gt;"
+    html = html &amp; "&lt;style&gt;"
+    html = html &amp; "body{font-family:'맑은 고딕',Arial,sans-serif;background:#f4f6f8;margin:40px;}"
+    html = html &amp; "h1{color:#1F4E78;} table{border-collapse:collapse;width:100%;background:#fff;}"
+    html = html &amp; "th,td{border:1px solid #ddd;padding:8px;text-align:center;}"
+    html = html &amp; "th{background:#1F4E78;color:#fff;}"
+    html = html &amp; ".bar-cell{position:relative;text-align:left;padding-left:6px;}"
+    html = html &amp; ".bar{height:18px;background:#4C9AFF;border-radius:3px;}"
+    html = html &amp; "&lt;/style&gt;&lt;/head&gt;&lt;body&gt;"
+    html = html &amp; "&lt;h1&gt;지점 x 제품별 매출 대시보드&lt;/h1&gt;"
+    html = html &amp; "&lt;p&gt;생성일시: " &amp; Format(Now, "yyyy-mm-dd hh:mm") &amp; "&lt;/p&gt;"
+
+    ' 3) 표 헤더
+    html = html &amp; "&lt;table&gt;&lt;tr&gt;&lt;th&gt;지점&lt;/th&gt;"
+    For j = 1 To colItems
+        html = html &amp; "&lt;th&gt;" &amp; colField.PivotItems(j).Name &amp; "&lt;/th&gt;"
+    Next j
+    html = html &amp; "&lt;th&gt;합계&lt;/th&gt;&lt;/tr&gt;"
+
+    ' 4) 표 본문 + 막대그래프
+    Dim rowTotal As Double
+    For i = 1 To rowItems
+        rowLabel = rowField.PivotItems(i).Name
+        html = html &amp; "&lt;tr&gt;&lt;td&gt;" &amp; rowLabel &amp; "&lt;/td&gt;"
+        rowTotal = 0
+        For j = 1 To colItems
+            colLabel = colField.PivotItems(j).Name
+            cellValue = 0
+            On Error Resume Next
+            cellValue = pTable.GetPivotData("매출액 합계", _
+                "지점", rowLabel, "제품명", colLabel).Value
+            On Error GoTo 0
+            rowTotal = rowTotal + cellValue
+
+            Dim barWidth As Long
+            If maxValue > 0 Then
+                barWidth = CLng(cellValue / maxValue * 100)
+            Else
+                barWidth = 0
+            End If
+
+            html = html &amp; "&lt;td class='bar-cell'&gt;"
+            html = html &amp; Format(cellValue, "#,##0")
+            html = html &amp; "&lt;div class='bar' style='width:" &amp; barWidth &amp; "%;'&gt;&lt;/div&gt;"
+            html = html &amp; "&lt;/td&gt;"
+        Next j
+        html = html &amp; "&lt;td&gt;&lt;b&gt;" &amp; Format(rowTotal, "#,##0") &amp; "&lt;/b&gt;&lt;/td&gt;&lt;/tr&gt;"
+    Next i
+    html = html &amp; "&lt;/table&gt;&lt;/body&gt;&lt;/html&gt;"
+
+    ' 5) 파일로 저장 (UTF-8)
+    outputPath = ThisWorkbook.Path &amp; "\매출대시보드.html"
+    fNum = FreeFile
+    Open outputPath For Output As #fNum
+    Print #fNum, html
+    Close #fNum
+
+    MsgBox "HTML 대시보드가 생성되었습니다:" &amp; vbCrLf &amp; outputPath, vbInformation
+
+    ' 6) 기본 브라우저로 자동 열기
+    ThisWorkbook.FollowHyperlink outputPath
+End Sub</code></pre>
+      </div>
+
+      <h3>코드 설명</h3>
+      <ul>
+        <li><b>GetPivotData</b> : 피벗 테이블에서 특정 행/열 조건에 해당하는 값을 읽어오는 함수입니다.</li>
+        <li>막대그래프는 실제 차트가 아니라, 각 셀 안에 값 비율만큼 너비를 가진 &lt;div&gt; 막대를 CSS로 그려 표현한 것입니다.</li>
+        <li><b>Open ... For Output / Print #fNum / Close #fNum</b> : 텍스트 파일(HTML)을 만들고 저장하는 VBA의 기본 파일 입출력 구문입니다.</li>
+        <li><b>FollowHyperlink</b> : 생성한 HTML 파일을 기본 웹 브라우저로 바로 열어줍니다.</li>
+      </ul>
+      <div class="note">💡 실전에서는 Chart.js 같은 외부 라이브러리 CDN을 &lt;script&gt; 태그로 추가하면 더 화려한 인터랙티브 차트도 만들 수 있습니다. (인터넷 연결 필요)</div>
+    </section>
+
+    <section class="step" id="faq">
+      <h2>부록. 자주 발생하는 오류와 해결 방법</h2>
+      <table class="spec">
+        <tr><th>증상</th><th>원인 및 해결 방법</th></tr>
+        <tr><td>매크로가 저장되지 않고 사라짐</td><td>파일을 '.xlsx'로 저장했기 때문입니다. '다른 이름으로 저장' &gt; 파일 형식을 'Excel 매크로 사용 통합 문서(.xlsm)'로 선택하세요.</td></tr>
+        <tr><td>'매크로를 사용할 수 없음' 경고가 뜸</td><td>[파일] &gt; [옵션] &gt; [보안 센터] &gt; [매크로 설정]에서 '모든 매크로 포함(알림 표시)' 이상으로 설정하고, 파일을 신뢰할 수 있는 위치에 두세요.</td></tr>
+        <tr><td>Worksheets("매출현황") 오류 (구독을 찾을 수 없음)</td><td>원본 파일의 시트 이름이 다르거나 오타가 있는 경우입니다. 시트명을 확인하거나 Worksheets(1)로 바꿔 첫 번째 시트를 사용하세요.</td></tr>
+        <tr><td>PivotCaches.Create 오류</td><td>원본 데이터 범위에 빈 열/행이 섞여 있거나, 헤더가 중복된 경우 발생합니다. 데이터 범위와 헤더를 다시 확인하세요.</td></tr>
+        <tr><td>한글이 깨진 HTML이 열림</td><td>저장 시 인코딩이 깨진 경우입니다. 메모장으로 연 뒤 '다른 이름으로 저장'에서 인코딩을 'UTF-8'로 지정해 다시 저장해보세요.</td></tr>
+      </table>
+      <div class="note">💡 본 교재는 실습 순서(1→6)에 따라 하나의 매크로 사용 통합 문서(.xlsm) 안에 모든 매크로를 누적하여 작성하는 것을 권장합니다.</div>
+    </section>
+
+    <footer>© VBA 실습 교재 — 사내 교육용 자료</footer>
+  </main>
+</div>
+
+<script src="assets/script.js"></script>
+</body>
+</html>
